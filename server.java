@@ -102,10 +102,19 @@ public class server extends Thread {
                             System.out.print(incomingVector[i] + " ");
                         }
 
-                        
+                                          
 
                     } else if (incomingMessage.getMessageType() == 2) { // Recovery Message
 
+
+
+                    } else if (incomingMessage.getMessageType() == 3) { // Flood Message
+
+                        if(true) { //iterator's id == mine => start checkpoint/recovery
+
+                        } else { //flood the msg to all neighbours
+                            
+                        }
                     }
                 } catch (EOFException ex) {
 

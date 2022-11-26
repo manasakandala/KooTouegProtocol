@@ -2,20 +2,28 @@ import java.io.Serializable;
 
 public class Message implements Serializable {
     int id;
-    int messageType;
+    int messageType; // 0 - Application Msg, 1 - CP Msg, 2 - Recovery Msg, 3 - Flood Msg
     int[] vectorClock;
     int labelValue;
+    int iterator;
 
     public Message() {
         
     }
 
-    public Message(int id, int messageType, int[] vectorClock, int labelValue) {
+    public Message(int id, int messageType, int[] vectorClock, int labelValue, int iterator) {
         this.id = id;
         this.messageType = messageType;
         this.vectorClock = vectorClock;
         this.labelValue = labelValue;
+        this.iterator = iterator;
     }
+
+    // public Message(int id, int messageType, int iterator) {
+    //     this.id = id;
+    //     this.messageType = messageType;
+    //     this.iterator = iterator;
+    // }
 
     public void setId(int id) {
         this.id = id;

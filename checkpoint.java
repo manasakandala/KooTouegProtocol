@@ -342,7 +342,10 @@ public class checkpoint {
                 }
 
                 //operation checkpoint
+                System.out.println("from: "+from);
+                System.out.println("id: "+id);
                 if (from.equals("" + id + "")) {
+                    System.out.println("&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&");
                     while (coverednodes.size() > 0) {
                         coverednodes.remove(coverednodes.size() - 1);
                     }
@@ -353,6 +356,7 @@ public class checkpoint {
 
                 //induced checkpoint
                 else {
+                    System.out.println("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^");
                     while (coverednodes.size() > 0) {
                         coverednodes.remove(coverednodes.size() - 1);
                     }
