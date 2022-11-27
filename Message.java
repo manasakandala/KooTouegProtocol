@@ -2,7 +2,7 @@ import java.io.Serializable;
 
 public class Message implements Serializable {
     int id;
-    int messageType; // 0 - Application Msg, 1 - CP Msg, 2 - Recovery Msg, 3 - Flood Msg
+    int messageType; // 0 - Application Msg, 1 - CP Msg, 2 - Recovery Msg, 3 - Flood Msg 4 - Ack 5 - Permanent CP
     int[] vectorClock;
     int labelValue;
     int iterator;
@@ -18,12 +18,6 @@ public class Message implements Serializable {
         this.labelValue = labelValue;
         this.iterator = iterator;
     }
-
-    // public Message(int id, int messageType, int iterator) {
-    //     this.id = id;
-    //     this.messageType = messageType;
-    //     this.iterator = iterator;
-    // }
 
     public void setId(int id) {
         this.id = id;
@@ -55,6 +49,14 @@ public class Message implements Serializable {
 
     public int getLabelValue() {
         return labelValue;
+    }
+
+    public int getIterator() {
+        return iterator;
+    }
+
+    public void setIterator(int iterator) {
+        this.iterator = iterator;
     }
 
 }

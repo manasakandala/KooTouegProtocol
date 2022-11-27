@@ -11,7 +11,7 @@ public class kooToueg {
     int noOfNeigbhorNodes;
     int noOfNodes;
     int minDelay;
-    ArrayList<ArrayList<String>> operations;
+    ArrayList<ArrayList<String>> operations; // operation, id
     int id;
     boolean task;
     int taskNodeId;
@@ -20,6 +20,10 @@ public class kooToueg {
     int[] vectorClock, backupVectorClock;
     int[] messageLabel;
     int[] lastLabelRcvd, firstLabelSent, lastLabelSent, bkLLR, bkFLS;
+    LinkedList<checkPointsTaken> cPointsTaken;
+    HashMap<Integer, Node> cohorts, bkpCohorts;
+    boolean saveCP;
+    appMessage ap;
 
     public kooToueg(int serverNumber) {
         noOfNeigbhorNodes = 0;
@@ -28,141 +32,184 @@ public class kooToueg {
         task = false;
         nodeDictionary = new HashMap<>();
         operations = new ArrayList<ArrayList<String>>();
+        cPointsTaken = new LinkedList<>();
+        saveCP = false;
+        bkpCohorts = new HashMap<>();
+        cohorts = new HashMap<>();
+        
     }
 
-    public class appMessage extends Thread {
+    public void sendMeassage(Node neighbor, Message floodMessage) {
+        try { 
+            Socket clientSocket = new Socket(neighbor.getHostName(), neighbor.getPort());
+            ObjectOutputStream outputStream = new ObjectOutputStream(clientSocket.getOutputStream());
+            outputStream.writeObject(floodMessage);
+            outputStream.flush();
+            outputStream.close();
 
-        kooToueg kT;
-
-        public appMessage(kooToueg kT) {
-            this.kT = kT;
-        }
-
-        public void updateFLS(int randNeigbhorIndex, int label) {
-            if (kT.firstLabelSent[randNeigbhorIndex] == -1) {
-                kT.firstLabelSent[randNeigbhorIndex] = label;
-            }
-
-            kT.lastLabelSent[randNeigbhorIndex] = label;
-        }
-
-        public void sendApplicationMessage() {
-            try {
-                sleep(10000);
-            } catch (InterruptedException e1) {
-                // TODO Auto-generated catch block
-                e1.printStackTrace();
-            }
-            ArrayList<Node> nodeNeigbhors = kT.nodeDictionary.get(kT.id).getNodeNeigbhors();
-            int randNeigbhorIndex = (int) (Math.random() * nodeNeigbhors.size());
-            Node randNeigbhor = nodeNeigbhors.get(randNeigbhorIndex);
-
-            int label = ++kT.messageLabel[randNeigbhorIndex];
-            Message newAppMessage = new Message(kT.id, 0, kT.vectorClock, label, -1);
-
-            updateFLS(randNeigbhorIndex, label);
-
-            try {
-                Socket clientSocket = new Socket(randNeigbhor.getHostName(), randNeigbhor.getPort());
-                ObjectOutputStream output = new ObjectOutputStream(clientSocket.getOutputStream());
-                output.writeObject(newAppMessage);
-                output.flush();
-                output.close();
-            } catch (UnknownHostException e) {
-                // TODO Auto-generated catch block
-                e.printStackTrace();
-            } catch (IOException e) {
-                // TODO Auto-generated catch block
-                e.printStackTrace();
-            }
-        }
-
-        public void run() {
-
-            while (kT.iterator < kT.operations.size()) {
-                try {
-                    sleep(1000);
-                } catch (Exception exception) {
-                    exception.printStackTrace();
-                }
-
-                sendApplicationMessage();
-            }
+        } catch (UnknownHostException e) {
+            // TODO Auto-generated catch block
+            e.printStackTrace();
+        } catch (IOException e) {
+            // TODO Auto-generated catch block
+            e.printStackTrace();
         }
     }
 
-    public class appControler extends Thread{
-    
-        kooToueg kT;
-        public appControler(kooToueg kT) {
-            this.kT = kT;
-        }
-    
-        public void run() {
-            
+    public void saveCheckPoint(int seqNumber) {
+        if(seqNumber!=cPointsTaken.peekLast().getSeqNumber()) {
+            checkPointsTaken CP = new checkPointsTaken( seqNumber, backupVectorClock);
+            cPointsTaken.add(CP);
+            Message perMessage = new Message(id, 5, backupVectorClock, seqNumber, iterator);
+            sendPermanentMessage(perMessage);
         }
     }
-    
+
+    public void sendPermanentMessage (Message perMessage) {
+        System.out.println("\nSeq No: "+perMessage.labelValue+"\nVectorClock :");
+        for( int n: backupVectorClock) 
+            System.out.print(n+" ");
+        System.out.println();
+
+        for (int id: bkpCohorts.keySet()) {
+            sendMeassage(bkpCohorts.get(id), perMessage);
+        }
+        bkpCohorts = new HashMap<>();
+    }
 
     public class Checkpoint extends Thread {
 
         kooToueg kT;
+        boolean tentativeTaken;
+        int parentNodeId;
 
         public Checkpoint(kooToueg kT) {
             this.kT = kT;
+            tentativeTaken = false;
         }
 
-        public void floodNetwork(int id, int iterator) {
-            int[] temp = new int[0];
-            Message floodMessage = new Message(id,  3, temp, -1 ,iterator);
-            
-            ArrayList<Node> neigbours = nodeDictionary.get(id).getNodeNeigbhors();
-            for(int i=0; i<neigbours.size(); i++) {
-                
+        public Checkpoint(kooToueg kT, int id) {
+            this.kT = kT;
+            this.parentNodeId = id;
+            tentativeTaken = false;
+        }
+
+        public void checkPointMessage() {
+            for (int id: kT.cohorts.keySet()) {
+                int index = kT.nodeDictionary.get(kT.id).findNeighbourIndex(id);
+                int label = kT.lastLabelRcvd[index];
+                Message checkPointMessage  =new Message(kT.id, 1, kT.vectorClock, label, kT.iterator);
+
+                kT.sendMeassage(kT.cohorts.get(id), checkPointMessage);
             }
         }
+
+        public void findCohorts(Node node) {
+            ArrayList <Node> neibhors = kT.nodeDictionary.get(kT.id).getNodeNeigbhors();
+            for (Node n: neibhors) {
+                int index = node.findNeighbourIndex(n.getNodeId());
+                if(lastLabelRcvd[index]>-1) {
+                    kT.cohorts.put(n.getNodeId(), n);
+                    kT.bkpCohorts.put(n.getNodeId(), n);
+                }
+            }
+        }
+
+        // public void floodNetwork(int id, int iterator) {
+        //     int[] temp = new int[0];
+        //     Message floodMessage = new Message(id, 3, temp, -1, iterator);
+
+        //     ArrayList<Node> neigbours = nodeDictionary.get(id).getNodeNeigbhors();
+        //     for (Node n : neigbours) {
+        //         kT.sendMeassage(n, floodMessage);
+        //     }
+        // }
 
         public void run() {
-            try {
-                appMessage.sleep(1000);
-                appControler.sleep(1000);
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-            // Backup for vector Clock
-            for (int i = 0; i < vectorClock.length; i++) {
-                backupVectorClock[i] = vectorClock[i];
-            }
+            findCohorts(kT.nodeDictionary.get(kT.id));
 
-            // Backup for llr, fls
-            for (int i = 0; i < lastLabelRcvd.length; i++) {
-                bkLLR[i] = lastLabelRcvd[i];
-                lastLabelRcvd[i] = -1;
-
-                bkFLS[i] = firstLabelSent[i];
-                firstLabelSent[i] = -1;
+            if(kT.iterator == 0 && kT.id == Integer.parseInt(kT.operations.get(0).get(1))) {
+                try {
+                    sleep(5000);
+                } catch (InterruptedException e) {
+                    // TODO Auto-generated catch block
+                    e.printStackTrace();
+                }
             }
-            System.out.println("_________CheckPoint Taken__________");
             
-            floodNetwork(id, iterator);
+            while(!saveCP) {
+
+                System.out.println("before pause");
+                try {
+                    appMessage.sleep(1000);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+                System.out.println("after pause");
+                if(tentativeTaken==false) {
+                    tentativeTaken = true;
+                    System.out.println("77777777777inside7777777777");
+                    checkPointMessage();
+
+                    // Tentative CP
+                    // Backup for vector Clock
+                    for (int i = 0; i < vectorClock.length; i++) {
+                        backupVectorClock[i] = vectorClock[i];
+                    }
+
+                    // Backup for llr, fls
+                    for (int i = 0; i < lastLabelRcvd.length; i++) {
+                        bkLLR[i] = lastLabelRcvd[i];
+                        lastLabelRcvd[i] = -1;
+
+                        bkFLS[i] = firstLabelSent[i];
+                        firstLabelSent[i] = -1;
+                    }
+                    System.out.println("_________Tentative CheckPoint Taken__________");
+                }
+
+                if(cohorts.size() == 0) {
+                    //if not initator of this iteration send reply to parent node
+                    tentativeTaken = false;
+                    saveCP = true;
+                    if(this.parentNodeId != -1) {
+                        if(Integer.parseInt(kT.operations.get(kT.iterator).get(1)) != kT.id) {
+                            Message ackMessage = new Message(kT.id, 4, kT.vectorClock, -1, kT.iterator);
+                            sendMeassage(kT.nodeDictionary.get(this.parentNodeId), ackMessage);
+                        }
+                    }
+                }
+            }
+            
+            // Permanent CP
+            if(kT.id == Integer.parseInt(kT.operations.get(kT.iterator).get(1))) {
+                if(cPointsTaken.size() == 0) {
+                    int number = (int)(Math.random());
+                    checkPointsTaken CP = new checkPointsTaken( number, vectorClock);
+                    cPointsTaken.add(CP);
+
+                    Message perMessage = new Message(id, 5, vectorClock, number, iterator);
+                    sendPermanentMessage(perMessage);
+                } else {
+                    int number = cPointsTaken.getLast().getSeqNumber();
+                    saveCheckPoint(number);
+                }
+            }
         }
     }
-    public void checkPointMessage(int id) {
-        //TODO send msg to all neigbors totake checkpoint
-        ArrayList<Node> neigbours = nodeDictionary.get(id).getNodeNeigbhors();
-        for(int i=0; i<neigbours.size(); i++) {
-            requestCheckPoint();
-        }
+
+    public void takeCheckpoint(int id) {
+        Checkpoint cp = new Checkpoint(this, id);
+        cp.start();
     }
 
     public void startThreads() {
         new server(this).start();
-        if (task == true && taskType == "c") {
-            new Checkpoint(this).start();
-            checkPointMessage(id);
+        if (task == true && taskType.equals("c")) {
+            takeCheckpoint(-1);
         }
         new appMessage(this).start();
-        new appControler(this).start();
+        // new appControler(this).start();
     }
 
     public void readData() {
@@ -229,11 +276,9 @@ public class kooToueg {
 
             sc.close();
         } catch (FileNotFoundException fileNotFoundException) {
-            System.out.println("Error during reading file");
             fileNotFoundException.printStackTrace();
         }
     }
-
     public static void main(String args[]) {
         int serverNumber = Integer.parseInt(args[0]);
         kooToueg obj = new kooToueg(serverNumber);
