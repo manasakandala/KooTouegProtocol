@@ -1,7 +1,5 @@
-import java.io.BufferedInputStream;
 import java.io.EOFException;
 import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
@@ -19,29 +17,11 @@ public class server extends Thread {
         kT.lastLabelRcvd[id] = labelValue;
     }
 
-    public void updateVectorClock(int[] vectorClock) {
-        for (int i = 0; i < kT.noOfNodes; i++) {
-            if (i == kT.id) {
-                if (vectorClock[i] > kT.vectorClock[i]) {
-                    kT.vectorClock[i] = vectorClock[i] + 1;
-                } else {
-                    kT.vectorClock[i]++;
-                }
-            } else {
-                kT.vectorClock[i] = vectorClock[i];
-            }
-        }
-    }
-
     public void run() {
-        String host = kT.nodeDictionary.get(kT.id).getHostName();
         int port = kT.nodeDictionary.get(kT.id).getPort();
 
-        ObjectInputStream inputStream = null;
-        ObjectOutputStream outputStream = null;
         ServerSocket serverSocket = null;
         Socket socket = null;
-        BufferedInputStream bufferedInputStream = null;
         try {
             serverSocket = new ServerSocket(port);
             System.out.println("server started");
@@ -60,7 +40,7 @@ public class server extends Thread {
         Socket socket;
 
         public MessageProcessingThread(Socket socket) {
-            this.socket = socket; 
+            this.socket = socket;
             try {
                 inputStream = new ObjectInputStream(socket.getInputStream());
             } catch (Exception ex) {
@@ -74,62 +54,80 @@ public class server extends Thread {
                 try {
                     Message incomingMessage = (Message) inputStream.readObject();
                     int senderId = incomingMessage.getId();
-                    System.out.println("Message Type: "+incomingMessage.getMessageType()+" From: "+incomingMessage.getId());
                     if (incomingMessage.getMessageType() == 0) { // Application Message
-
+                        System.out.println("Message Type: " + incomingMessage.getMessageType() + " From: "+ incomingMessage.getId());
                         int neighbourIndex = kT.nodeDictionary.get(kT.id).findNeighbourIndex(senderId);
+
                         updateLLR(neighbourIndex, incomingMessage.getLabelValue());
-                        updateVectorClock(incomingMessage.getVecClk());
+                        kT.updateVectorClock(incomingMessage.getVecClk(), incomingMessage.getId());
 
                     } else if (incomingMessage.getMessageType() == 1) { // Checkpoint Message
+                        if (kT.takePermanent == false) {
+                            kT.takePermanent = true;
+                            int[] incomingVector = incomingMessage.getVecClk();
+                            int index = kT.nodeDictionary.get(kT.id).findNeighbourIndex(incomingMessage.id);
+                            if (incomingMessage.labelValue >= kT.firstLabelSent[index]
+                                    && kT.firstLabelSent[index] > -1) {
+                                kT.takeCheckpoint(incomingMessage.id);
+                                continue;
+                            }
 
-                        int[] incomingVector = incomingMessage.getVecClk();
-                        int index = kT.nodeDictionary.get(kT.id).findNeighbourIndex(incomingMessage.id);
-                        if(incomingMessage.labelValue >= kT.firstLabelSent[index] && kT.firstLabelSent[index] > -1) {
-                            kT.takeCheckpoint(incomingMessage.id);  
-                            continue;
-                        } 
-                        
-                        Message ackMessage = new Message(kT.id, 4, incomingVector, -1, kT.iterator);
-                        kT.sendMeassage(kT.nodeDictionary.get(incomingMessage.id), ackMessage);
-
+                            Message ackMessage = new Message(kT.id, 4, incomingVector, -1, kT.iterator);
+                            kT.sendMeassage(kT.nodeDictionary.get(incomingMessage.id), ackMessage);
+                        } else {
+                            Message ackMessage = new Message(kT.id, 4, incomingMessage.vectorClock, -1, kT.iterator);
+                            kT.sendMeassage(kT.nodeDictionary.get(incomingMessage.id), ackMessage);
+                        }
                     } else if (incomingMessage.getMessageType() == 2) { // Recovery Message
-
-
 
                     } else if (incomingMessage.getMessageType() == 3) { // Flood Message
                         int itr = incomingMessage.getIterator();
-                        int opNodeId = Integer.parseInt(kT.operations.get(itr).get(1));
-                        if(kT.id == opNodeId) { //iterator's id == mine => start checkpoint/recovery
-                            if(incomingMessage.iterator > kT.iterator) {
-                                sleep(kT.minDelay);
-                                kT.takeCheckpoint(incomingMessage.id);
-                            }
-                        } else { //flood the msg to all neighbours
-                            ArrayList<Node> neighbors = kT.nodeDictionary.get(kT.id).getNodeNeigbhors();
-                            for(Node n: neighbors) {
-                                if(n.getNodeId() != incomingMessage.id)
-                                    kT.sendMeassage(n, incomingMessage);
+                        if (kT.iterator < itr) {
+                            kT.iterator = itr;
+                            int opNodeId = Integer.parseInt(kT.operations.get(itr).get(1));
+                            if (kT.id == incomingMessage.getLabelValue()) { // iterator's id == mine => start
+                                System.out.println("Need to start operation");
+                                for (long stop = System.currentTimeMillis() + kT.minDelay; stop > System
+                                        .currentTimeMillis();)
+                                    ;
+                                if (kT.operations.get(incomingMessage.iterator).get(0).equals("c")) {
+                                    kT.takeCheckpoint(opNodeId);
+                                } else {
+                                    // recovery operation start
+                                }
+
+                            } else { // flood the msg to all neighbours
+                                ArrayList<Node> neighbors = kT.nodeDictionary.get(kT.id).getNodeNeigbhors();
+                                for (Node n : neighbors) {
+                                    if (n.getNodeId() != incomingMessage.id)
+                                        kT.sendMeassage(n, incomingMessage);
+                                }
                             }
                         }
 
-                    } else if(incomingMessage.getMessageType() == 4) { //Ack Message
+                    } else if (incomingMessage.getMessageType() == 4) { // Ack Message
 
                         int nodeId = incomingMessage.getId();
                         kT.cohorts.remove(nodeId);
+                    } else if (incomingMessage.getMessageType() == 5) { // Permanent CP
+                        synchronized(kT.cPointsTaken) {   
+                            kT.takePermanent = false;
+                            int seqNumber = incomingMessage.getLabelValue();
+                            if (kT.id == Integer.parseInt(kT.operations.get(kT.iterator).get(1))) {
+                                continue;
+                            }
+                            if (kT.cPointsTaken.size() == 0) {
+                                checkPointsTaken CP = new checkPointsTaken(seqNumber, kT.backupVectorClock);
+                                kT.cPointsTaken.add(CP);
+                                System.out.println("_______Permanent CheckPoint Taken 1_________");
 
-                    } else if(incomingMessage.getMessageType() == 5) { //Permanent CP
-                        // kT.saveCheckPoint(incomingMessage.labelValue);
-                        if(kT.cPointsTaken.size() == 0) {
-                            int number = incomingMessage.getLabelValue();
-                            checkPointsTaken CP = new checkPointsTaken( number, kT.vectorClock);
-                            kT.cPointsTaken.add(CP);
-                            
-                            Message perMessage = new Message(kT.id, 5, kT.vectorClock, number, kT.iterator);
-                            kT.sendPermanentMessage(perMessage);
-                        } else {
-                            int number = kT.cPointsTaken.getLast().getSeqNumber();
-                            kT.saveCheckPoint(number);
+                                Message perMessage = new Message(kT.id, 5, kT.vectorClock, seqNumber, kT.iterator);
+                                kT.sendPermanentMessage(perMessage);
+                            } else {
+                                // int number = kT.cPointsTaken.getLast().getSeqNumber();
+                                kT.saveCheckPoint(seqNumber);
+
+                            }
                         }
                     }
                 } catch (EOFException ex) {

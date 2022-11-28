@@ -21,17 +21,14 @@ public class appMessage extends Thread{
     }
 
     public void sendApplicationMessage() {
-        // try {
-        //     sleep(5000);
-        // } catch (InterruptedException e1) {
-        //     e1.printStackTrace();
-        // }
         ArrayList<Node> nodeNeigbhors = kT.nodeDictionary.get(kT.id).getNodeNeigbhors();
         int randNeigbhorIndex = (int)(Math.random() * nodeNeigbhors.size());
         Node randNeigbhor = nodeNeigbhors.get(randNeigbhorIndex);
 
         int label = ++kT.messageLabel[randNeigbhorIndex];
+        kT.vectorClock[kT.id]++;
         Message newAppMessage = new Message(kT.id, 0, kT.vectorClock, label, -1);
+        // System.out.println("Sent to: "+randNeigbhor.getNodeId());
         updateFLS(randNeigbhorIndex, label);
 
         try {
