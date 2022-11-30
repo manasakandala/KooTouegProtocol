@@ -228,7 +228,10 @@ public class kooToueg {
             takeCheckpoint(-1);
         }
         new appMessage(this).start();
-        // new appControler(this).start();
+    }
+
+    public void performRecovery() {
+        
     }
 
     public void readData() {

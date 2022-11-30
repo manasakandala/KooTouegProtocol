@@ -80,6 +80,8 @@ public class server extends Thread {
                         }
                     } else if (incomingMessage.getMessageType() == 2) { // Recovery Message
 
+                        kT.performRecovery();
+
                     } else if (incomingMessage.getMessageType() == 3) { // Flood Message
                         int itr = incomingMessage.getIterator();
                         if (kT.iterator < itr) {
@@ -93,7 +95,11 @@ public class server extends Thread {
                                 if (kT.operations.get(incomingMessage.iterator).get(0).equals("c")) {
                                     kT.takeCheckpoint(opNodeId);
                                 } else {
-                                    // recovery operation start
+                                    kT.performRecovery();
+
+                                    //find who all have to recover
+                                    Message recMessage = new Message(kT.id, 2, incomingMessage.vectorClock, incomingMessage.labelValue, incomingMessage.iterator);
+                                    //send msg to all the nodes who have to recover
                                 }
 
                             } else { // flood the msg to all neighbours
