@@ -17,7 +17,7 @@ public class kooToueg {
     int taskNodeId;
     String taskType;
     int iterator;
-    int[] vectorClock, backupVectorClock;
+    int[] vectorClock, backupVectorClock, backupPerVectorClock;
     int[] messageLabel;
     int[] lastLabelRcvd, firstLabelSent, lastLabelSent, bkLLR, bkFLS, bkLLS;
     LinkedList<checkPointsTaken> cPointsTaken;
@@ -26,6 +26,10 @@ public class kooToueg {
     appMessage ap;
     boolean takePermanent;
     int sentMsgCount;
+    int[] iterationsTaken;
+    int recItr;
+
+    sendMessage sndMsg;
 
     public kooToueg(int serverNumber) {
         noOfNeigbhorNodes = 0;
@@ -40,22 +44,11 @@ public class kooToueg {
         cohorts = new HashMap<>();
         takePermanent = false;
         sentMsgCount=0;
+        recItr = 0;
+        sndMsg = new sendMessage();
     }
 
-    public void sendMeassage(Node neighbor, Message floodMessage) {
-        try {
-            Socket clientSocket = new Socket(neighbor.getHostName(), neighbor.getPort());
-            ObjectOutputStream outputStream = new ObjectOutputStream(clientSocket.getOutputStream());
-            outputStream.writeObject(floodMessage);
-            outputStream.flush();
-            outputStream.close();
-
-        } catch (UnknownHostException e) {
-            e.printStackTrace();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
+    
 
     public void updateVectorClock(int[] incomingVectorClock, int senderId) {
         for (int i = 0; i < noOfNodes; i++) {
@@ -72,7 +65,7 @@ public class kooToueg {
             checkPointsTaken CP = new checkPointsTaken(seqNumber, backupVectorClock);
             cPointsTaken.add(CP);
             System.out.println("_______Permanent CheckPoint Taken 3_________");
-            Message perMessage = new Message(id, 5, backupVectorClock, seqNumber, iterator);
+            Message perMessage = new Message(id, 5, backupVectorClock, seqNumber, iterator, -1);
             sendPermanentMessage(perMessage);
         }
         takePermanent = false;
@@ -83,6 +76,9 @@ public class kooToueg {
         for (int i=0; i<lastLabelSent.length; i++) {
             bkLLS[i] = lastLabelSent[i];
         }
+        for(int i=0; i<vectorClock.length; i++) {
+            backupPerVectorClock[i] = backupVectorClock[i];
+        }
         
         System.out.println("\nSeq No: " + perMessage.labelValue + "\nVectorClock :");
         for (int n : backupVectorClock)
@@ -90,7 +86,7 @@ public class kooToueg {
         System.out.println();
 
         for (int id : bkpCohorts.keySet()) {
-            sendMeassage(bkpCohorts.get(id), perMessage);
+            sndMsg.sendMeassage(bkpCohorts.get(id), perMessage);
         }
         bkpCohorts = new HashMap<>();
     }
@@ -116,9 +112,9 @@ public class kooToueg {
             for (int id : kT.cohorts.keySet()) {
                 int index = kT.nodeDictionary.get(kT.id).findNeighbourIndex(id);
                 int label = kT.lastLabelRcvd[index];
-                Message checkPointMessage = new Message(kT.id, 1, kT.vectorClock, label, kT.iterator);
+                Message checkPointMessage = new Message(kT.id, 1, kT.vectorClock, label, kT.iterator, -1);
 
-                kT.sendMeassage(kT.cohorts.get(id), checkPointMessage);
+                sndMsg.sendMeassage(kT.cohorts.get(id), checkPointMessage);
             }
         }
 
@@ -139,11 +135,11 @@ public class kooToueg {
         }
 
         public void floodNetwork(int id, int iterator) {
-            Message floodMessage = new Message(id, 3, kT.vectorClock, Integer.parseInt(kT.operations.get(kT.iterator).get(1)), kT.iterator);
+            Message floodMessage = new Message(id, 3, kT.vectorClock, Integer.parseInt(kT.operations.get(iterator).get(1)), iterator, kT.recItr);
 
             ArrayList<Node> neigbours = nodeDictionary.get(id).getNodeNeigbhors();
             for (Node n : neigbours) {
-                kT.sendMeassage(n, floodMessage);
+                sndMsg.sendMeassage(n, floodMessage);
             }
         }
 
@@ -160,10 +156,10 @@ public class kooToueg {
 
             while (!saveCP) {
                 try {
-                    appMessage.sleep(1000);
-                    if (kT.id == Integer.parseInt(kT.operations.get(0).get(1))) {
-                        Checkpoint.sleep(minDelay);
+                    if (kT.id == Integer.parseInt(kT.operations.get(kT.iterator).get(1))) {
+                        Thread.sleep(minDelay);
                     }
+                    appMessage.sleep(1000);
                 } catch (InterruptedException e) {
                     e.printStackTrace();
                 }
@@ -194,8 +190,8 @@ public class kooToueg {
                     saveCP = true;
                     if (this.parentNodeId != -1) {
                         if (Integer.parseInt(kT.operations.get(kT.iterator).get(1)) != kT.id) {
-                            Message ackMessage = new Message(kT.id, 4, kT.vectorClock, -1, kT.iterator);
-                            sendMeassage(kT.nodeDictionary.get(this.parentNodeId), ackMessage);
+                            Message ackMessage = new Message(kT.id, 4, kT.vectorClock, -1, kT.iterator, -1);
+                            sndMsg.sendMeassage(kT.nodeDictionary.get(this.parentNodeId), ackMessage);
                         }
                     }
                 }
@@ -210,7 +206,7 @@ public class kooToueg {
                     cPointsTaken.add(CP);
                     System.out.println("_______Permanent CheckPoint Taken 2_________");
                     takePermanent = false;
-                    Message perMessage = new Message(id, 5, vectorClock, number, iterator);
+                    Message perMessage = new Message(id, 5, vectorClock, number, iterator, -1);
                     sendPermanentMessage(perMessage);
                     kT.iterator++;
                     floodNetwork(kT.id, kT.iterator);
@@ -237,24 +233,30 @@ public class kooToueg {
         new appMessage(this).start();
     }
 
-    void performRecovery() {
-        Recovery r = new Recovery(this);
+    void performRecovery(Message incomingMessage, int parentNodeId) {
+        Recovery r = new Recovery(this, incomingMessage, parentNodeId);
         r.start();
     }
 
     public class Recovery extends Thread {
 
         kooToueg kT;
+        Message incMessage;
+        int parentNodeId;
 
-        public Recovery(kooToueg kT) {
+        public Recovery(kooToueg kT, Message incomingMessage, int parentNodeId) {
             this.kT = kT;
+            this.incMessage = incomingMessage;
+            this.parentNodeId = parentNodeId;
         }
 
         public void run() {
             synchronized(kT.vectorClock) {
                 try {
-                    if (kT.id == Integer.parseInt(kT.operations.get(0).get(1))) {
-                        Recovery.sleep(minDelay);
+                    System.out.println("iterator value: "+ kT.iterator);
+                    if (kT.id == Integer.parseInt(kT.operations.get(kT.iterator).get(1))) {
+                        System.out.println("sleeping");
+                        Thread.sleep(minDelay);
                     }
                 } catch (InterruptedException e) {
                     e.printStackTrace();
@@ -271,8 +273,21 @@ public class kooToueg {
                 }
                 System.out.println("\n_____Recovery Completed _____");
                 for(int i=0; i<vectorClock.length; i++) {
-                    vectorClock[i] = backupVectorClock[i];
+                    vectorClock[i] = backupPerVectorClock[i];
+                    backupVectorClock[i] = -1;
                     System.out.print(" "+vectorClock[i]);
+                }
+                System.out.println();
+
+                for(Node n: kT.nodeDictionary.get(kT.id).getNodeNeigbhors()) {
+                    if(parentNodeId == -1 || n.getNodeId() != incMessage.getId()) {
+                        System.out.print(" "+n.getNodeId());
+                        int ndId = n.getNodeId();
+                        int idx = kT.nodeDictionary.get(kT.id).findNeighbourIndex(ndId);
+                        int labl = kT.lastLabelSent[idx];
+                        Message recMessage = new Message(kT.id, 2, incMessage.vectorClock, labl, incMessage.iterator, kT.recItr);
+                        kT.sndMsg.sendMeassage(n, recMessage);
+                    }
                 }
                 System.out.println();
             }
@@ -341,6 +356,8 @@ public class kooToueg {
             bkLLS = new int[noOfNeigbhorNodes];
             vectorClock = new int[noOfNodes];
             backupVectorClock = new int[noOfNodes];
+            backupPerVectorClock = new int[noOfNodes];
+            iterationsTaken = new int[operations.size()];
 
             sc.close();
         } catch (FileNotFoundException fileNotFoundException) {

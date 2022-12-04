@@ -6,17 +6,19 @@ public class Message implements Serializable {
     int[] vectorClock;
     int labelValue;
     int iterator;
+    int recIterator;
 
     public Message() {
         
     }
 
-    public Message(int id, int messageType, int[] vectorClock, int labelValue, int iterator) {
+    public Message(int id, int messageType, int[] vectorClock, int labelValue, int iterator, int recIterator) {
         this.id = id;
         this.messageType = messageType;
         this.vectorClock = vectorClock;
         this.labelValue = labelValue;
         this.iterator = iterator;
+        this.recIterator = recIterator;
     }
 
     public void setId(int id) {
@@ -57,6 +59,14 @@ public class Message implements Serializable {
 
     public void setIterator(int iterator) {
         this.iterator = iterator;
+    }
+
+    public int getRecIterator() {
+        return recIterator;
+    }
+
+    public void setRecIterator(int recIterator) {
+        this.recIterator = recIterator;
     }
 
 }

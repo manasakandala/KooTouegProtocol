@@ -72,32 +72,24 @@ public class server extends Thread {
                                 continue;
                             }
 
-                            Message ackMessage = new Message(kT.id, 4, incomingVector, -1, kT.iterator);
-                            kT.sendMeassage(kT.nodeDictionary.get(incomingMessage.id), ackMessage);
+                            Message ackMessage = new Message(kT.id, 4, incomingVector, -1, kT.iterator, -1);
+                            kT.sndMsg.sendMeassage(kT.nodeDictionary.get(incomingMessage.id), ackMessage);
                         } else {
-                            Message ackMessage = new Message(kT.id, 4, incomingMessage.vectorClock, -1, kT.iterator);
-                            kT.sendMeassage(kT.nodeDictionary.get(incomingMessage.id), ackMessage);
+                            Message ackMessage = new Message(kT.id, 4, incomingMessage.vectorClock, -1, kT.iterator, -1);
+                            kT.sndMsg.sendMeassage(kT.nodeDictionary.get(incomingMessage.id), ackMessage);
                         }
                     } else if (incomingMessage.getMessageType() == 2) { // Recovery Message
-                        //induced recovery case
-                        int nodeId = incomingMessage.getId();
-                        int index = kT.nodeDictionary.get(kT.id).findNeighbourIndex(nodeId);
-                        int LLRfromi = kT.lastLabelRcvd[index];
-                        System.out.println("LLR[incomingNode]: "+LLRfromi+"\nLabel: "+incomingMessage.labelValue);
-                        if(LLRfromi > incomingMessage.labelValue) {
-                            kT.performRecovery();
-                            
-                            for(Node n: kT.nodeDictionary.get(kT.id).getNodeNeigbhors()) {
-                                if(n.getNodeId() != incomingMessage.getId()) {
-                                    System.out.print(" "+n.getNodeId());
-                                    int ndId = n.getNodeId();
-                                    int idx = kT.nodeDictionary.get(kT.id).findNeighbourIndex(ndId);
-                                    int labl = kT.lastLabelSent[idx];
-                                    Message recMessage = new Message(kT.id, 2, incomingMessage.vectorClock, labl, incomingMessage.iterator);
-                                    kT.sendMeassage(n, recMessage);
-                                }
+                        System.out.println("kT.iterator: "+kT.recItr+"\nincomingMsgiterator: "+incomingMessage.getRecIterator());
+                        if (kT.recItr < incomingMessage.getRecIterator()) { 
+                            kT.recItr = incomingMessage.getRecIterator();
+                            //induced recovery case
+                            int nodeId = incomingMessage.getId();
+                            int index = kT.nodeDictionary.get(kT.id).findNeighbourIndex(nodeId);
+                            int LLRfromi = kT.lastLabelRcvd[index];
+                            System.out.println("LLR[incomingNode]: "+LLRfromi+"\nLabel: "+incomingMessage.labelValue);
+                            if(LLRfromi > incomingMessage.labelValue) {
+                                kT.performRecovery(incomingMessage, incomingMessage.getId());
                             }
-                            System.out.println();
                         }
 
                     } else if (incomingMessage.getMessageType() == 3) { // Flood Message
@@ -106,6 +98,7 @@ public class server extends Thread {
                             kT.iterator = itr;
                             int opNodeId = Integer.parseInt(kT.operations.get(itr).get(1));
                             if (kT.id == incomingMessage.getLabelValue()) { // iterator's id == mine => start
+                                
                                 System.out.println("Need to start operation");
                                 // for (long stop = System.currentTimeMillis() + kT.minDelay; stop > System.currentTimeMillis(););
 
@@ -113,24 +106,15 @@ public class server extends Thread {
                                     kT.takeCheckpoint(opNodeId);
                                 } else {
                                     //Recovery from msg.
-                                    kT.performRecovery();
-                                    System.out.println("Sending recovery msg to: ");
-                                    for(Node n: kT.nodeDictionary.get(kT.id).getNodeNeigbhors()) {
-                                        System.out.print(" "+n.getNodeId());
-                                        int nodeId = n.getNodeId();
-                                        int index = kT.nodeDictionary.get(kT.id).findNeighbourIndex(nodeId);
-                                        int labl = kT.lastLabelSent[index];
-                                        Message recMessage = new Message(kT.id, 2, incomingMessage.vectorClock, labl, incomingMessage.iterator);
-                                        kT.sendMeassage(n, recMessage);
-                                    }
-                                    System.out.println();
+                                    kT.recItr++;
+                                    kT.performRecovery(incomingMessage, -1);
                                 }
 
                             } else { // flood the msg to all neighbours
                                 ArrayList<Node> neighbors = kT.nodeDictionary.get(kT.id).getNodeNeigbhors();
                                 for (Node n : neighbors) {
                                     if (n.getNodeId() != incomingMessage.id)
-                                        kT.sendMeassage(n, incomingMessage);
+                                        kT.sndMsg.sendMeassage(n, incomingMessage);
                                 }
                             }
                         }
@@ -151,7 +135,7 @@ public class server extends Thread {
                                 kT.cPointsTaken.add(CP);
                                 System.out.println("_______Permanent CheckPoint Taken 1_________");
 
-                                Message perMessage = new Message(kT.id, 5, kT.vectorClock, seqNumber, kT.iterator);
+                                Message perMessage = new Message(kT.id, 5, kT.vectorClock, seqNumber, kT.iterator, -1);
                                 kT.sendPermanentMessage(perMessage);
                             } else {
                                 // int number = kT.cPointsTaken.getLast().getSeqNumber();
