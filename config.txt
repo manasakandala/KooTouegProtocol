@@ -1,10 +1,10 @@
 5 5000 #noOfNodes, minDelay
 
-0 localhost 1234 #nodeId, hostName, portID
-1 localhost 1233
-2 localhost 1235
-3 localhost 1232
-4 localhost 1231
+0 dc01.utdallas.edu 1234 #nodeId, hostName, portID
+1 dc02.utdallas.edu 1233
+2 dc03.utdallas.edu 1235
+3 dc04.utdallas.edu 1232
+4 dc05.utdallas.edu 1231
 
 1 4
 0 2 3
