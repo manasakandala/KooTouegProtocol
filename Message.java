@@ -2,7 +2,7 @@ import java.io.Serializable;
 
 public class Message implements Serializable {
     int id;
-    int messageType; // 0 - Application Msg, 1 - CP Msg, 2 - Recovery Msg, 3 - Flood Msg 4 - Ack 5 - Permanent CP
+    int messageType; // 0 - Application Msg, 1 - CP Msg, 2 - Recovery Msg, 3 - Flood Msg 4 - Ack 5 - Permanent CP 6 - Terminate
     int[] vectorClock;
     int labelValue;
     int iterator;
