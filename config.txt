@@ -1,4 +1,4 @@
-5 15 #noOfNodes, minDelay
+5 500 #noOfNodes, minDelay
 
 0 localhost 1234 #nodeId, hostName, portID
 1 localhost 1233

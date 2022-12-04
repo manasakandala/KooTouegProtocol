@@ -19,7 +19,7 @@ public class kooToueg {
     int iterator;
     int[] vectorClock, backupVectorClock;
     int[] messageLabel;
-    int[] lastLabelRcvd, firstLabelSent, lastLabelSent, bkLLR, bkFLS;
+    int[] lastLabelRcvd, firstLabelSent, lastLabelSent, bkLLR, bkFLS, bkLLS;
     LinkedList<checkPointsTaken> cPointsTaken;
     HashMap<Integer, Node> cohorts, bkpCohorts;
     boolean saveCP;
@@ -72,7 +72,6 @@ public class kooToueg {
             checkPointsTaken CP = new checkPointsTaken(seqNumber, backupVectorClock);
             cPointsTaken.add(CP);
             System.out.println("_______Permanent CheckPoint Taken 3_________");
-
             Message perMessage = new Message(id, 5, backupVectorClock, seqNumber, iterator);
             sendPermanentMessage(perMessage);
         }
@@ -80,6 +79,11 @@ public class kooToueg {
     }
 
     public void sendPermanentMessage(Message perMessage) {
+        
+        for (int i=0; i<lastLabelSent.length; i++) {
+            bkLLS[i] = lastLabelSent[i];
+        }
+        
         System.out.println("\nSeq No: " + perMessage.labelValue + "\nVectorClock :");
         for (int n : backupVectorClock)
             System.out.print(n + " ");
@@ -157,6 +161,9 @@ public class kooToueg {
             while (!saveCP) {
                 try {
                     appMessage.sleep(1000);
+                    if (kT.id == Integer.parseInt(kT.operations.get(0).get(1))) {
+                        Checkpoint.sleep(minDelay);
+                    }
                 } catch (InterruptedException e) {
                     e.printStackTrace();
                 }
@@ -230,8 +237,46 @@ public class kooToueg {
         new appMessage(this).start();
     }
 
-    public void performRecovery() {
-        
+    void performRecovery() {
+        Recovery r = new Recovery(this);
+        r.start();
+    }
+
+    public class Recovery extends Thread {
+
+        kooToueg kT;
+
+        public Recovery(kooToueg kT) {
+            this.kT = kT;
+        }
+
+        public void run() {
+            synchronized(kT.vectorClock) {
+                try {
+                    if (kT.id == Integer.parseInt(kT.operations.get(0).get(1))) {
+                        Recovery.sleep(minDelay);
+                    }
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+
+                for(int i=0; i<lastLabelSent.length; i++) {
+                    lastLabelSent[i] = bkLLS[i];
+                    lastLabelRcvd[i] = -1;
+                    firstLabelSent[i] = -1;
+                }
+                System.out.println("_____Recovery Started _____");
+                for(int i=0; i<vectorClock.length; i++) {
+                    System.out.print(" "+vectorClock[i]);
+                }
+                System.out.println("\n_____Recovery Completed _____");
+                for(int i=0; i<vectorClock.length; i++) {
+                    vectorClock[i] = backupVectorClock[i];
+                    System.out.print(" "+vectorClock[i]);
+                }
+                System.out.println();
+            }
+        }
     }
 
     public void readData() {
@@ -293,6 +338,7 @@ public class kooToueg {
             firstLabelSent = new int[noOfNeigbhorNodes];
             bkLLR = new int[noOfNeigbhorNodes];
             bkFLS = new int[noOfNeigbhorNodes];
+            bkLLS = new int[noOfNeigbhorNodes];
             vectorClock = new int[noOfNodes];
             backupVectorClock = new int[noOfNodes];
 

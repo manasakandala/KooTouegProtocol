@@ -54,10 +54,10 @@ public class server extends Thread {
                 try {
                     Message incomingMessage = (Message) inputStream.readObject();
                     int senderId = incomingMessage.getId();
+                    System.out.println("Message Type: " + incomingMessage.getMessageType() + " From: "+ incomingMessage.getId());
                     if (incomingMessage.getMessageType() == 0) { // Application Message
-                        System.out.println("Message Type: " + incomingMessage.getMessageType() + " From: "+ incomingMessage.getId());
-                        int neighbourIndex = kT.nodeDictionary.get(kT.id).findNeighbourIndex(senderId);
 
+                        int neighbourIndex = kT.nodeDictionary.get(kT.id).findNeighbourIndex(senderId);
                         updateLLR(neighbourIndex, incomingMessage.getLabelValue());
                         kT.updateVectorClock(incomingMessage.getVecClk(), incomingMessage.getId());
 
@@ -79,8 +79,26 @@ public class server extends Thread {
                             kT.sendMeassage(kT.nodeDictionary.get(incomingMessage.id), ackMessage);
                         }
                     } else if (incomingMessage.getMessageType() == 2) { // Recovery Message
-
-                        kT.performRecovery();
+                        //induced recovery case
+                        int nodeId = incomingMessage.getId();
+                        int index = kT.nodeDictionary.get(kT.id).findNeighbourIndex(nodeId);
+                        int LLRfromi = kT.lastLabelRcvd[index];
+                        System.out.println("LLR[incomingNode]: "+LLRfromi+"\nLabel: "+incomingMessage.labelValue);
+                        if(LLRfromi > incomingMessage.labelValue) {
+                            kT.performRecovery();
+                            
+                            for(Node n: kT.nodeDictionary.get(kT.id).getNodeNeigbhors()) {
+                                if(n.getNodeId() != incomingMessage.getId()) {
+                                    System.out.print(" "+n.getNodeId());
+                                    int ndId = n.getNodeId();
+                                    int idx = kT.nodeDictionary.get(kT.id).findNeighbourIndex(ndId);
+                                    int labl = kT.lastLabelSent[idx];
+                                    Message recMessage = new Message(kT.id, 2, incomingMessage.vectorClock, labl, incomingMessage.iterator);
+                                    kT.sendMeassage(n, recMessage);
+                                }
+                            }
+                            System.out.println();
+                        }
 
                     } else if (incomingMessage.getMessageType() == 3) { // Flood Message
                         int itr = incomingMessage.getIterator();
@@ -89,17 +107,23 @@ public class server extends Thread {
                             int opNodeId = Integer.parseInt(kT.operations.get(itr).get(1));
                             if (kT.id == incomingMessage.getLabelValue()) { // iterator's id == mine => start
                                 System.out.println("Need to start operation");
-                                for (long stop = System.currentTimeMillis() + kT.minDelay; stop > System
-                                        .currentTimeMillis();)
-                                    ;
+                                // for (long stop = System.currentTimeMillis() + kT.minDelay; stop > System.currentTimeMillis(););
+
                                 if (kT.operations.get(incomingMessage.iterator).get(0).equals("c")) {
                                     kT.takeCheckpoint(opNodeId);
                                 } else {
+                                    //Recovery from msg.
                                     kT.performRecovery();
-
-                                    //find who all have to recover
-                                    Message recMessage = new Message(kT.id, 2, incomingMessage.vectorClock, incomingMessage.labelValue, incomingMessage.iterator);
-                                    //send msg to all the nodes who have to recover
+                                    System.out.println("Sending recovery msg to: ");
+                                    for(Node n: kT.nodeDictionary.get(kT.id).getNodeNeigbhors()) {
+                                        System.out.print(" "+n.getNodeId());
+                                        int nodeId = n.getNodeId();
+                                        int index = kT.nodeDictionary.get(kT.id).findNeighbourIndex(nodeId);
+                                        int labl = kT.lastLabelSent[index];
+                                        Message recMessage = new Message(kT.id, 2, incomingMessage.vectorClock, labl, incomingMessage.iterator);
+                                        kT.sendMeassage(n, recMessage);
+                                    }
+                                    System.out.println();
                                 }
 
                             } else { // flood the msg to all neighbours
