@@ -33,11 +33,9 @@ public class appMessage extends Thread{
         updateFLS(randNeigbhorIndex, label);
 
         try {
-            Socket clientSocket = new Socket(randNeigbhor.getHostName(), randNeigbhor.getPort());
-            ObjectOutputStream output = new ObjectOutputStream(clientSocket.getOutputStream());
+            ObjectOutputStream output = kT.outputMap.get(randNeigbhor.getNodeId());
             output.writeObject(newAppMessage);
             output.flush();
-            output.close();
         } catch (UnknownHostException e) {
             e.printStackTrace();
         } catch (IOException e) {

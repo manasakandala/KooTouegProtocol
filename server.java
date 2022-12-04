@@ -1,5 +1,6 @@
 import java.io.EOFException;
 import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
@@ -8,6 +9,7 @@ import java.util.ArrayList;
 public class server extends Thread {
 
     kooToueg kT;
+    
 
     public server(kooToueg kT) {
         this.kT = kT;
@@ -17,6 +19,8 @@ public class server extends Thread {
         kT.lastLabelRcvd[id] = labelValue;
     }
 
+    
+
     public void run() {
         int port = kT.nodeDictionary.get(kT.id).getPort();
 
@@ -25,13 +29,17 @@ public class server extends Thread {
         try {
             serverSocket = new ServerSocket(port);
             System.out.println("server started");
+            
+            Thread.sleep(3000);
+            kT.initializeSocketMap();
+
             while (true) {
                 socket = serverSocket.accept();
                 new Thread(new MessageProcessingThread(socket)).start();
             }
 
-        } catch (IOException exception) {
-            exception.printStackTrace();
+        } catch (Exception e) {
+            e.printStackTrace();
         }
     }
 
@@ -73,10 +81,10 @@ public class server extends Thread {
                             }
 
                             Message ackMessage = new Message(kT.id, 4, incomingVector, -1, kT.iterator, -1);
-                            kT.sndMsg.sendMeassage(kT.nodeDictionary.get(incomingMessage.id), ackMessage);
+                            kT.sendMeassage(kT.nodeDictionary.get(incomingMessage.id), ackMessage);
                         } else {
                             Message ackMessage = new Message(kT.id, 4, incomingMessage.vectorClock, -1, kT.iterator, -1);
-                            kT.sndMsg.sendMeassage(kT.nodeDictionary.get(incomingMessage.id), ackMessage);
+                            kT.sendMeassage(kT.nodeDictionary.get(incomingMessage.id), ackMessage);
                         }
                     } else if (incomingMessage.getMessageType() == 2) { // Recovery Message
                     System.out.println("Message Type: " + incomingMessage.getMessageType() + " From: "+ incomingMessage.getId());
@@ -115,7 +123,7 @@ public class server extends Thread {
                                 ArrayList<Node> neighbors = kT.nodeDictionary.get(kT.id).getNodeNeigbhors();
                                 for (Node n : neighbors) {
                                     if (n.getNodeId() != incomingMessage.id)
-                                        kT.sndMsg.sendMeassage(n, incomingMessage);
+                                        kT.sendMeassage(n, incomingMessage);
                                 }
                             }
                         }
@@ -148,7 +156,7 @@ public class server extends Thread {
                         ArrayList<Node> neighbors = kT.nodeDictionary.get(kT.id).getNodeNeigbhors();
                         for (Node n : neighbors) {
                             if (n.getNodeId() != incomingMessage.id)
-                                kT.sndMsg.sendMeassage(n, incomingMessage);
+                                kT.sendMeassage(n, incomingMessage);
                         }
                         kT.closeClient();
                     } 
