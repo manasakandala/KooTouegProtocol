@@ -1,7 +1,5 @@
 import java.io.EOFException;
 import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
-import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.ArrayList;
@@ -16,7 +14,9 @@ public class server extends Thread {
     }
 
     public void updateLLR(int id, int labelValue) {
-        kT.lastLabelRcvd[id] = labelValue;
+        synchronized(kT.lastLabelRcvd) {
+            kT.lastLabelRcvd[id] = labelValue;
+        }
     }
 
     
@@ -39,7 +39,7 @@ public class server extends Thread {
             }
 
         } catch (Exception e) {
-            e.printStackTrace();
+            
         }
     }
 
@@ -52,7 +52,7 @@ public class server extends Thread {
             try {
                 inputStream = new ObjectInputStream(socket.getInputStream());
             } catch (Exception ex) {
-                ex.printStackTrace();
+                
             }
         }
 
@@ -86,6 +86,7 @@ public class server extends Thread {
                             Message ackMessage = new Message(kT.id, 4, incomingMessage.vectorClock, -1, kT.iterator, -1);
                             kT.sendMeassage(kT.nodeDictionary.get(incomingMessage.id), ackMessage);
                         }
+
                     } else if (incomingMessage.getMessageType() == 2) { // Recovery Message
                     System.out.println("Message Type: " + incomingMessage.getMessageType() + " From: "+ incomingMessage.getId());
                         if (kT.recItr < incomingMessage.getRecIterator()) { 
@@ -94,7 +95,6 @@ public class server extends Thread {
                             int nodeId = incomingMessage.getId();
                             int index = kT.nodeDictionary.get(kT.id).findNeighbourIndex(nodeId);
                             int LLRfromi = kT.lastLabelRcvd[index];
-                            System.out.println("LLR[incomingNode]: "+LLRfromi+"\nLabel: "+incomingMessage.labelValue);
                             if(LLRfromi > incomingMessage.labelValue) {
                                 kT.performRecovery(incomingMessage, incomingMessage.getId());
                             }
@@ -130,7 +130,7 @@ public class server extends Thread {
 
                     } else if (incomingMessage.getMessageType() == 4) { // Ack Message
 
-                    System.out.println("Message Type: " + incomingMessage.getMessageType() + " From: "+ incomingMessage.getId());
+                    // System.out.println("Message Type: " + incomingMessage.getMessageType() + " From: "+ incomingMessage.getId());
                         int nodeId = incomingMessage.getId();
                         kT.cohorts.remove(nodeId);
                     } else if (incomingMessage.getMessageType() == 5) { // Permanent CP
@@ -163,7 +163,7 @@ public class server extends Thread {
                 } catch (EOFException ex) {
 
                 } catch (Exception ex) {
-                    ex.printStackTrace();
+                    
                 }
             }
         }

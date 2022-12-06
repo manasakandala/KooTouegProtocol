@@ -1,6 +1,5 @@
 import java.io.IOException;
 import java.lang.Math;
-import java.net.Socket;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.io.ObjectOutputStream;
@@ -13,11 +12,13 @@ public class appMessage extends Thread{
     }
 
     public void updateFLS(int randNeigbhorIndex, int label) {
-        if(kT.firstLabelSent[randNeigbhorIndex] == -1) {
-            kT.firstLabelSent[randNeigbhorIndex] = label;
-        }
+        synchronized(kT.firstLabelSent) {
+            if(kT.firstLabelSent[randNeigbhorIndex] == -1) {
+                kT.firstLabelSent[randNeigbhorIndex] = label;
+            }
 
-        kT.lastLabelSent[randNeigbhorIndex] = label;
+            kT.lastLabelSent[randNeigbhorIndex] = label;
+        }
     }
 
     public void sendApplicationMessage() {
@@ -29,7 +30,6 @@ public class appMessage extends Thread{
         int label = ++kT.messageLabel[randNeigbhorIndex];
         kT.vectorClock[kT.id]++;
         Message newAppMessage = new Message(kT.id, 0, kT.vectorClock, label, -1, -1);
-        // System.out.println("Sent to: "+randNeigbhor.getNodeId());
         updateFLS(randNeigbhorIndex, label);
 
         try {
@@ -37,9 +37,9 @@ public class appMessage extends Thread{
             output.writeObject(newAppMessage);
             output.flush();
         } catch (UnknownHostException e) {
-            e.printStackTrace();
+            
         } catch (IOException e) {
-            e.printStackTrace();
+            
         }
     }
 
@@ -47,14 +47,14 @@ public class appMessage extends Thread{
         try {
             sleep(3000);
         } catch(Exception exception) {
-            exception.printStackTrace();
+            
         }
 
         while(kT.iterator < kT.operations.size()) {
             try {
                 sleep(1000);
             } catch(Exception exception) {
-                exception.printStackTrace();
+                
             }
 
             sendApplicationMessage();

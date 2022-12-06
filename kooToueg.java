@@ -41,12 +41,14 @@ public class kooToueg {
     }
 
     public void updateVectorClock(int[] incomingVectorClock, int senderId) {
-        for (int i = 0; i < noOfNodes; i++) {
-            if (incomingVectorClock[i] > vectorClock[i]) {
-                vectorClock[i] = incomingVectorClock[i];
+        synchronized(vectorClock) {
+            for (int i = 0; i < noOfNodes; i++) {
+                if (incomingVectorClock[i] > vectorClock[i]) {
+                    vectorClock[i] = incomingVectorClock[i];
+                }
             }
-        }
-        vectorClock[this.id]++;
+            vectorClock[this.id]++;
+        }  
     }
 
     public void initializeSocketMap() {
@@ -59,7 +61,7 @@ public class kooToueg {
                     outputMap.put(neighbour.getNodeId(), new ObjectOutputStream(clientSocket.getOutputStream()));
                 }
             } catch (Exception ex) {
-                ex.printStackTrace();
+
             }
         }
     }
@@ -72,9 +74,9 @@ public class kooToueg {
             outputStream.flush();
 
         } catch (UnknownHostException e) {
-            e.printStackTrace();
+            
         } catch (IOException e) {
-            e.printStackTrace();
+            
         }
     }
 
@@ -178,7 +180,7 @@ public class kooToueg {
                 try {
                     sleep(5000);
                 } catch (InterruptedException e) {
-                    e.printStackTrace();
+                    
                 }
             }
 
@@ -189,7 +191,7 @@ public class kooToueg {
                     }
                     appMessage.sleep(1000);
                 } catch (InterruptedException e) {
-                    e.printStackTrace();
+                    
                 }
                 if (tentativeTaken == false) {
                     tentativeTaken = true;
@@ -261,7 +263,7 @@ public class kooToueg {
         appMsg.start();
     }
 
-    void performRecovery(Message incomingMessage, int parentNodeId) {
+    public void performRecovery(Message incomingMessage, int parentNodeId) {
         Recovery r = new Recovery(this, incomingMessage, parentNodeId);
         r.start();
     }
@@ -280,11 +282,12 @@ public class kooToueg {
 
         public void run() {
             try {
+                System.out.println("Iterator: "+Integer.parseInt(kT.operations.get(kT.iterator).get(1)));
                 if (kT.id == Integer.parseInt(kT.operations.get(kT.iterator).get(1))) {
                     Thread.sleep(minDelay);
                 }
             } catch (InterruptedException e) {
-                e.printStackTrace();
+                
             }
 
             for (int i = 0; i < lastLabelSent.length; i++) {
@@ -299,8 +302,8 @@ public class kooToueg {
             System.out.println("\nRecovery Completed\n");
             synchronized (kT.vectorClock) {
                 for (int i = 0; i < vectorClock.length; i++) {
-                    vectorClock[i] = backupPerVectorClock[i];
-                    backupVectorClock[i] = -1;
+                    vectorClock[i] = backupVectorClock[i];
+                    // backupVectorClock[i] = 0;
                     System.out.print(" " + vectorClock[i]);
                 }
             }
@@ -320,14 +323,16 @@ public class kooToueg {
 
             try {
 
-                Thread.sleep(2000);
+                
                 if (kT.id == Integer.parseInt(kT.operations.get(kT.iterator).get(1))) {
+                    Thread.sleep(2000);
                     kT.iterator++;
+                    System.out.println("Iterator value before flood in rec: "+ kT.iterator);
                     kT.floodNetwork(kT.id, kT.iterator);
                 }
 
             } catch (Exception e) {
-                e.printStackTrace();
+                
             }
 
         }
@@ -405,7 +410,7 @@ public class kooToueg {
             sc.close();
 
         } catch (FileNotFoundException fileNotFoundException) {
-            fileNotFoundException.printStackTrace();
+
         }
     }
 
